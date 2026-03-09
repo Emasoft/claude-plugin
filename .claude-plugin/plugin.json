@@ -17,7 +17,7 @@
     "inter-agent-communication"
   ],
   "skills": [
-    "skills/messaging"
+    "skills/agent-messaging"
   ],
   "commands": [
     "commands/amp-init.md",
