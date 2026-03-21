@@ -153,33 +153,6 @@ NAME=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
 echo ""
 echo "Initializing AMP identity..."
 
-# Handle --force re-init: preserve existing UUID if available
-AGENT_UUID=""
-if is_initialized && [ "$FORCE" = true ]; then
-    EXISTING_UUID=$(jq -r '.agent.id // empty' "$AMP_CONFIG" 2>/dev/null)
-    if [ -n "$EXISTING_UUID" ]; then
-        AGENT_UUID="$EXISTING_UUID"
-        echo "  Preserving existing agent ID: ${AGENT_UUID}"
-    fi
-fi
-
-# Generate client-side UUID for new agents
-if [ -z "$AGENT_UUID" ]; then
-    AGENT_UUID=$(generate_uuid)
-fi
-
-# Set AMP_DIR to UUID-based path
-AMP_DIR="${AMP_AGENTS_BASE}/${AGENT_UUID}"
-
-# Re-derive all dependent paths (since AMP_DIR changed)
-AMP_CONFIG="${AMP_DIR}/config.json"
-AMP_KEYS_DIR="${AMP_DIR}/keys"
-AMP_MESSAGES_DIR="${AMP_DIR}/messages"
-AMP_INBOX_DIR="${AMP_MESSAGES_DIR}/inbox"
-AMP_SENT_DIR="${AMP_MESSAGES_DIR}/sent"
-AMP_REGISTRATIONS_DIR="${AMP_DIR}/registrations"
-AMP_ATTACHMENTS_DIR="${AMP_DIR}/attachments"
-
 # Ensure directories exist
 ensure_amp_dirs
 
@@ -189,7 +162,7 @@ FINGERPRINT=$(generate_keypair)
 
 # Save configuration
 echo "  Saving configuration..."
-ADDRESS=$(save_config "$NAME" "$TENANT" "$FINGERPRINT" "$AGENT_UUID")
+ADDRESS=$(save_config "$NAME" "$TENANT" "$FINGERPRINT")
 
 # Create IDENTITY.md for agent context recovery
 echo "  Creating identity file..."
@@ -208,13 +181,11 @@ REG_REQUEST=$(jq -n \
     --arg name "$NAME" \
     --arg tenant "$TENANT" \
     --arg publicKey "$PUBLIC_KEY_PEM" \
-    --arg agentId "$AGENT_UUID" \
     '{
         name: $name,
         tenant: $tenant,
         public_key: $publicKey,
-        key_algorithm: "Ed25519",
-        agent_id: $agentId
+        key_algorithm: "Ed25519"
     }')
 
 # Try to register with local AI Maestro
@@ -323,7 +294,6 @@ fi
 echo ""
 echo "✅ AMP initialized successfully!"
 echo ""
-echo "  Agent ID:    ${AGENT_UUID}"
 echo "  Agent Name:  ${NAME}"
 echo "  Tenant:      ${TENANT}"
 echo "  Address:     ${ADDRESS}"

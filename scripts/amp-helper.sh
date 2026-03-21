@@ -645,7 +645,6 @@ save_config() {
     local name="$1"
     local tenant="${2:-default}"
     local fingerprint="$3"
-    local agent_id="${4:-}"
 
     # Build address: name@tenant.aimaestro.local
     local address="${name}@${tenant}.${AMP_PROVIDER_DOMAIN}"
@@ -655,21 +654,18 @@ save_config() {
         --arg tenant "$tenant" \
         --arg address "$address" \
         --arg fingerprint "$fingerprint" \
-        --arg agent_id "$agent_id" \
         --arg provider_domain "$AMP_PROVIDER_DOMAIN" \
         --arg maestro_url "$AMP_MAESTRO_URL" \
         --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '{
             version: "1.1",
-            agent: (
-                {
-                    name: $name,
-                    tenant: $tenant,
-                    address: $address,
-                    fingerprint: $fingerprint,
-                    createdAt: $created
-                } + if $agent_id != "" then {id: $agent_id} else {} end
-            ),
+            agent: {
+                name: $name,
+                tenant: $tenant,
+                address: $address,
+                fingerprint: $fingerprint,
+                createdAt: $created
+            },
             provider: {
                 domain: $provider_domain,
                 maestro_url: $maestro_url
@@ -710,16 +706,6 @@ generate_keypair() {
                   $OPENSSL_BIN dgst -sha256 -binary | base64)
 
     echo "SHA256:${fingerprint}"
-}
-
-# Generate UUIDv4 — client-generated, globally unique, no coordination needed
-generate_uuid() {
-    if command -v uuidgen &>/dev/null; then
-        uuidgen | tr '[:upper:]' '[:lower:]'
-    else
-        # Fallback: generate from /dev/urandom (works on any POSIX system)
-        od -x /dev/urandom | head -1 | awk '{print $2$3"-"$4"-4"substr($5,2)"-"substr($6,1,1)"a"substr($6,2)"-"$7$8$9}'
-    fi
 }
 
 # Get public key hex (for registration)
