@@ -1209,24 +1209,6 @@ mark_as_read() {
     # Update both old (.metadata.status) and new (.local.status) locations
     local updated=$(jq '.metadata.status = "read" | .local.status = "read"' "$msg_file")
     echo "$updated" > "$msg_file"
-
-    # Sync read status to registered providers
-    # Without this, provider-side (e.g. AI Maestro) still shows the message as unread
-    if [ -d "${AMP_REGISTRATIONS_DIR}" ]; then
-        for reg_file in "${AMP_REGISTRATIONS_DIR}"/*.json; do
-            [ -f "$reg_file" ] || continue
-            local api_url api_key
-            api_url=$(jq -r '.apiUrl // empty' "$reg_file" 2>/dev/null)
-            api_key=$(jq -r '.apiKey // empty' "$reg_file" 2>/dev/null)
-            if [ -n "$api_url" ] && [ -n "$api_key" ]; then
-                # Fire-and-forget: don't block on provider response
-                curl -sf --connect-timeout 3 -X POST \
-                    "${api_url}/messages/${message_id}/read" \
-                    -H "Authorization: Bearer ${api_key}" \
-                    >/dev/null 2>&1 &
-            fi
-        done
-    fi
 }
 
 # Delete a message
