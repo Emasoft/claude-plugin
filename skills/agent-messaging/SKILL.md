@@ -223,7 +223,7 @@ User Keys are sensitive credentials tied to the user's account and billing. They
 
 Agents should map these user intents to the appropriate commands:
 
-- "Check my inbox" → `amp-inbox.sh`
+- "Check my inbox" → `amp-inbox.sh` to list, then `amp-read.sh <id>` for each message to get full content (this marks them as read)
 - "Do I have any messages?" → `amp-inbox.sh --count`
 - "Send a message to alice saying hello" → `amp-send.sh alice "Hello" "hello"`
 - "Tell backend-api that the build is ready" → `amp-send.sh backend-api "Build ready" "..."`
