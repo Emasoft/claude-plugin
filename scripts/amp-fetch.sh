@@ -17,6 +17,17 @@
 
 set -e
 
+# Pre-source: extract --id to set agent identity before helper resolves it
+_amp_prev=""
+for _amp_arg in "$@"; do
+    if [ "$_amp_prev" = "--id" ]; then
+        export CLAUDE_AGENT_ID="$_amp_arg"
+        break
+    fi
+    _amp_prev="$_amp_arg"
+done
+unset _amp_prev _amp_arg
+
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/amp-helper.sh"
@@ -35,6 +46,7 @@ show_help() {
     echo "  --provider, -p PROVIDER   Fetch from specific provider only"
     echo "  --verbose, -v             Show detailed output"
     echo "  --no-mark                 Don't mark messages as fetched on provider"
+    echo "  --id UUID                 Operate as this agent (UUID from config.json)"
     echo "  --help, -h                Show this help"
     echo ""
     echo "Examples:"
@@ -56,6 +68,9 @@ while [[ $# -gt 0 ]]; do
         --no-mark)
             MARK_AS_FETCHED=false
             shift
+            ;;
+        --id)
+            shift 2  # Already handled in pre-source parsing
             ;;
         --help|-h)
             show_help
@@ -203,11 +218,7 @@ for provider in "${PROVIDERS[@]}"; do
                 sender_addr=$(echo "$msg" | jq -r '.envelope.from // empty')
                 sender_name="${sender_addr%%@*}"
                 # Look up sender UUID from .index.json for key resolution
-                _sender_uuid=""
-                _amp_index="${AMP_AGENTS_BASE}/.index.json"
-                if [ -f "$_amp_index" ]; then
-                    _sender_uuid=$(jq -r --arg name "$sender_name" '.[$name] // empty' "$_amp_index" 2>/dev/null)
-                fi
+                _sender_uuid=$(_index_lookup "$sender_name" 2>/dev/null) || true
                 if [ -n "$_sender_uuid" ]; then
                     sender_pubkey="${AMP_AGENTS_BASE}/${_sender_uuid}/keys/public.pem"
                 else
