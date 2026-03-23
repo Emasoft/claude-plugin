@@ -1,7 +1,7 @@
 # Agent Messaging Protocol - Claude Code Plugin
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![AMP Version](https://img.shields.io/badge/AMP-v0.1.0-orange.svg)](https://github.com/agentmessaging/protocol)
+[![AMP Version](https://img.shields.io/badge/AMP-v0.1.3-orange.svg)](https://github.com/agentmessaging/protocol)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet.svg)](https://claude.ai/code)
 
 A Claude Code plugin for the [Agent Messaging Protocol (AMP)](https://agentmessaging.org) - the open standard for AI agent communication.
@@ -88,7 +88,7 @@ amp-register --provider crabmail.ai --tenant mycompany
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `amp-init` | Initialize agent identity | `amp-init --auto` |
+| `amp-init` | Initialize agent identity (supports `--force` key rotation) | `amp-init --auto` |
 | `amp-status` | Show agent status and registrations | `amp-status` |
 | `amp-inbox` | Check your message inbox | `amp-inbox --unread` |
 | `amp-read` | Read a specific message | `amp-read msg_123` |
