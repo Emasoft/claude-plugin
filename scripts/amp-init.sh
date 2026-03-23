@@ -184,8 +184,18 @@ AMP_ATTACHMENTS_DIR="${AMP_DIR}/attachments"
 ensure_amp_dirs
 
 # Generate keypair
-echo "  Generating Ed25519 keypair..."
-FINGERPRINT=$(generate_keypair)
+ROTATION_MODE=false
+if [ "$FORCE" = true ] && [ -f "${AMP_KEYS_DIR}/private.pem" ]; then
+    # Existing keys found — generate to temp dir for rotation
+    ROTATION_MODE=true
+    TEMP_KEYS_DIR=$(mktemp -d)
+    trap 'rm -rf "$TEMP_KEYS_DIR"' EXIT
+    echo "  Generating new Ed25519 keypair (rotation mode)..."
+    FINGERPRINT=$(generate_keypair_to "$TEMP_KEYS_DIR")
+else
+    echo "  Generating Ed25519 keypair..."
+    FINGERPRINT=$(generate_keypair)
+fi
 
 # =============================================================================
 # Verify fingerprint uniqueness across all local agents
@@ -229,102 +239,195 @@ echo "  Creating identity file..."
 IDENTITY_FILE=$(create_identity_file "$NAME" "$TENANT" "$ADDRESS" "$FINGERPRINT")
 
 # =============================================================================
-# Auto-register AMP identity for cross-host routing
+# Auto-register AMP identity / rotate keys with providers
 # =============================================================================
-echo "  Registering AMP identity..."
-
-# Get the PEM-encoded public key
-PUBLIC_KEY_PEM=$(cat "${AMP_KEYS_DIR}/public.pem")
-
-# Build registration request
-REG_REQUEST=$(jq -n \
-    --arg name "$NAME" \
-    --arg tenant "$TENANT" \
-    --arg publicKey "$PUBLIC_KEY_PEM" \
-    --arg agentId "$AGENT_UUID" \
-    '{
-        name: $name,
-        tenant: $tenant,
-        public_key: $publicKey,
-        key_algorithm: "Ed25519",
-        agent_id: $agentId
-    }')
-
-# Try to register with local AI Maestro
-REG_RESPONSE=$(curl -s -w "\n%{http_code}" --connect-timeout 3 -X POST \
-    "${AMP_MAESTRO_URL}/api/v1/register" \
-    -H "Content-Type: application/json" \
-    -d "$REG_REQUEST" 2>&1) || true
-
-REG_HTTP_CODE=$(echo "$REG_RESPONSE" | tail -n1)
-REG_BODY=$(echo "$REG_RESPONSE" | sed '$d')
-
+_DO_FRESH_REGISTRATION=false
 REGISTRATION_OK=false
 
-if [ "$REG_HTTP_CODE" = "200" ] || [ "$REG_HTTP_CODE" = "201" ]; then
-    # Parse registration response
-    REG_API_KEY=$(echo "$REG_BODY" | jq -r '.api_key // empty')
-    REG_ADDRESS=$(echo "$REG_BODY" | jq -r '.address // empty')
-    REG_AGENT_ID=$(echo "$REG_BODY" | jq -r '.agent_id // empty')
-    REG_PROVIDER_NAME=$(echo "$REG_BODY" | jq -r '.provider.name // "aimaestro.local"')
-    REG_PROVIDER_ENDPOINT=$(echo "$REG_BODY" | jq -r '.provider.endpoint // empty')
+if [ "$ROTATION_MODE" = true ]; then
+    # === KEY ROTATION PATH ===
+    echo "  Rotating keys with providers..."
+    NEW_PUBLIC_KEY_PEM=$(cat "${TEMP_KEYS_DIR}/public.pem")
+    OLD_PRIVATE_KEY="${AMP_KEYS_DIR}/private.pem"
 
-    if [ -n "$REG_API_KEY" ]; then
-        # Save registration file
-        ensure_amp_dirs
-        REG_FILE="${AMP_REGISTRATIONS_DIR}/${REG_PROVIDER_NAME}.json"
+    # Create proof: sign new public key PEM with OLD private key
+    PROOF_TMP=$(mktemp); PROOF_SIG_TMP=$(mktemp)
+    trap 'rm -rf "$TEMP_KEYS_DIR" "$PROOF_TMP" "$PROOF_SIG_TMP"' EXIT
+    printf '%s' "$NEW_PUBLIC_KEY_PEM" > "$PROOF_TMP"
 
-        jq -n \
-            --arg provider "$REG_PROVIDER_NAME" \
-            --arg apiUrl "${REG_PROVIDER_ENDPOINT:-${AMP_MAESTRO_URL}/api/v1}" \
-            --arg agentName "$NAME" \
-            --arg tenant "$TENANT" \
-            --arg address "${REG_ADDRESS:-$ADDRESS}" \
-            --arg apiKey "$REG_API_KEY" \
-            --arg providerAgentId "$REG_AGENT_ID" \
-            --arg fingerprint "$FINGERPRINT" \
-            --arg registeredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{
-                provider: $provider,
-                apiUrl: $apiUrl,
-                agentName: $agentName,
-                tenant: $tenant,
-                address: $address,
-                apiKey: $apiKey,
-                providerAgentId: $providerAgentId,
-                fingerprint: $fingerprint,
-                registeredAt: $registeredAt
-            }' > "$REG_FILE"
-
-        chmod 600 "$REG_FILE"
-        REGISTRATION_OK=true
-        echo "  ✅ AMP identity registered (cross-host routing enabled)"
-    else
-        echo "  ⚠️  AMP registration succeeded but no API key returned"
+    PROOF=""
+    if $OPENSSL_BIN pkeyutl -sign -inkey "$OLD_PRIVATE_KEY" -rawin \
+        -in "$PROOF_TMP" -out "$PROOF_SIG_TMP" 2>/dev/null; then
+        PROOF=$(base64 < "$PROOF_SIG_TMP" | tr -d '\n')
     fi
 
-elif [ "$REG_HTTP_CODE" = "409" ]; then
-    # Agent name already registered - this is fine (re-init scenario)
-    echo "  ℹ️  AMP identity already registered"
-    # Check if we already have a registration file
-    for reg_file in "${AMP_REGISTRATIONS_DIR}"/*.json; do
-        [ -f "$reg_file" ] || continue
-        provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
-        if [[ "$provider" == *"aimaestro"* ]] || [[ "$provider" == *".local"* ]]; then
-            REGISTRATION_OK=true
-            break
-        fi
-    done
+    ROTATION_FAILED=false
 
-elif [ "$REG_HTTP_CODE" = "000" ] || [ -z "$REG_HTTP_CODE" ]; then
-    echo "  ⚠️  AMP provider not reachable at ${AMP_MAESTRO_URL}"
-    echo "     Cross-host routing will not work until connected."
-    echo "     Start the server and run: amp-init --force"
+    if [ -n "$PROOF" ]; then
+        for reg_file in "${AMP_REGISTRATIONS_DIR}"/*.json; do
+            [ -f "$reg_file" ] || continue
+            REG_API_KEY=$(jq -r '.apiKey // empty' "$reg_file" 2>/dev/null)
+            REG_API_URL=$(jq -r '.apiUrl // empty' "$reg_file" 2>/dev/null)
+            REG_PROVIDER=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
+            [ -z "$REG_API_KEY" ] || [ -z "$REG_API_URL" ] && continue
 
+            echo "  Rotating keys with ${REG_PROVIDER}..."
+            ROTATE_REQUEST=$(jq -n \
+                --arg newKey "$NEW_PUBLIC_KEY_PEM" \
+                --arg proof "$PROOF" \
+                '{ new_public_key: $newKey, key_algorithm: "Ed25519", proof: $proof }')
+
+            ROTATE_RESPONSE=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -X POST \
+                "${REG_API_URL}/auth/rotate-keys" \
+                -H "Authorization: Bearer ${REG_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -d "$ROTATE_REQUEST" 2>&1) || true
+
+            ROTATE_HTTP=$(echo "$ROTATE_RESPONSE" | tail -n1)
+            ROTATE_BODY=$(echo "$ROTATE_RESPONSE" | sed '$d')
+
+            if [ "$ROTATE_HTTP" = "200" ] || [ "$ROTATE_HTTP" = "201" ]; then
+                NEW_API_KEY=$(echo "$ROTATE_BODY" | jq -r '.api_key // empty')
+                if [ -n "$NEW_API_KEY" ]; then
+                    jq --arg fp "$FINGERPRINT" --arg key "$NEW_API_KEY" \
+                        '.fingerprint = $fp | .apiKey = $key' "$reg_file" > "${reg_file}.tmp" \
+                        && mv "${reg_file}.tmp" "$reg_file"
+                else
+                    jq --arg fp "$FINGERPRINT" '.fingerprint = $fp' "$reg_file" > "${reg_file}.tmp" \
+                        && mv "${reg_file}.tmp" "$reg_file"
+                fi
+                chmod 600 "$reg_file"
+                echo "  ✅ Keys rotated with ${REG_PROVIDER}"
+                REGISTRATION_OK=true
+            elif [ "$ROTATE_HTTP" = "000" ] || [ -z "$ROTATE_HTTP" ]; then
+                echo "  ⚠️  ${REG_PROVIDER} not reachable — skipping"
+                ROTATION_FAILED=true
+            else
+                ROTATE_ERROR=$(echo "$ROTATE_BODY" | jq -r '.message // .error // "Unknown"' 2>/dev/null)
+                echo "  ⚠️  Rotation failed with ${REG_PROVIDER} (HTTP ${ROTATE_HTTP}): ${ROTATE_ERROR}"
+                ROTATION_FAILED=true
+            fi
+        done
+    else
+        echo "  ⚠️  Could not create rotation proof (signing failed)"
+        ROTATION_FAILED=true
+    fi
+
+    if [ "$ROTATION_FAILED" = true ]; then
+        echo ""
+        echo "  ⚠️  Some providers could not rotate keys."
+        echo "     Provider registrations may be stale. Re-register with: amp-register.sh"
+    fi
+
+    # Swap new keys into place
+    cp "${TEMP_KEYS_DIR}/private.pem" "${AMP_KEYS_DIR}/private.pem"
+    chmod 600 "${AMP_KEYS_DIR}/private.pem"
+    cp "${TEMP_KEYS_DIR}/public.pem" "${AMP_KEYS_DIR}/public.pem"
+    chmod 644 "${AMP_KEYS_DIR}/public.pem"
+
+    # If no registrations existed, try fresh registration
+    if ! ls "${AMP_REGISTRATIONS_DIR}"/*.json &>/dev/null; then
+        _DO_FRESH_REGISTRATION=true
+    fi
 else
-    REG_ERROR=$(echo "$REG_BODY" | jq -r '.message // .error // "Unknown error"' 2>/dev/null)
-    echo "  ⚠️  AMP registration failed (HTTP ${REG_HTTP_CODE}): ${REG_ERROR}"
-    echo "     Local messaging works, but cross-host routing requires registration."
+    _DO_FRESH_REGISTRATION=true
+fi
+
+if [ "$_DO_FRESH_REGISTRATION" = true ]; then
+    # === FRESH REGISTRATION ===
+    echo "  Registering AMP identity..."
+
+    # Get the PEM-encoded public key
+    PUBLIC_KEY_PEM=$(cat "${AMP_KEYS_DIR}/public.pem")
+
+    # Build registration request
+    REG_REQUEST=$(jq -n \
+        --arg name "$NAME" \
+        --arg tenant "$TENANT" \
+        --arg publicKey "$PUBLIC_KEY_PEM" \
+        --arg agentId "$AGENT_UUID" \
+        '{
+            name: $name,
+            tenant: $tenant,
+            public_key: $publicKey,
+            key_algorithm: "Ed25519",
+            agent_id: $agentId
+        }')
+
+    # Try to register with local AI Maestro
+    REG_RESPONSE=$(curl -s -w "\n%{http_code}" --connect-timeout 3 -X POST \
+        "${AMP_MAESTRO_URL}/api/v1/register" \
+        -H "Content-Type: application/json" \
+        -d "$REG_REQUEST" 2>&1) || true
+
+    REG_HTTP_CODE=$(echo "$REG_RESPONSE" | tail -n1)
+    REG_BODY=$(echo "$REG_RESPONSE" | sed '$d')
+
+    if [ "$REG_HTTP_CODE" = "200" ] || [ "$REG_HTTP_CODE" = "201" ]; then
+        # Parse registration response
+        REG_API_KEY=$(echo "$REG_BODY" | jq -r '.api_key // empty')
+        REG_ADDRESS=$(echo "$REG_BODY" | jq -r '.address // empty')
+        REG_AGENT_ID=$(echo "$REG_BODY" | jq -r '.agent_id // empty')
+        REG_PROVIDER_NAME=$(echo "$REG_BODY" | jq -r '.provider.name // "aimaestro.local"')
+        REG_PROVIDER_ENDPOINT=$(echo "$REG_BODY" | jq -r '.provider.endpoint // empty')
+
+        if [ -n "$REG_API_KEY" ]; then
+            # Save registration file
+            ensure_amp_dirs
+            REG_FILE="${AMP_REGISTRATIONS_DIR}/${REG_PROVIDER_NAME}.json"
+
+            jq -n \
+                --arg provider "$REG_PROVIDER_NAME" \
+                --arg apiUrl "${REG_PROVIDER_ENDPOINT:-${AMP_MAESTRO_URL}/api/v1}" \
+                --arg agentName "$NAME" \
+                --arg tenant "$TENANT" \
+                --arg address "${REG_ADDRESS:-$ADDRESS}" \
+                --arg apiKey "$REG_API_KEY" \
+                --arg providerAgentId "$REG_AGENT_ID" \
+                --arg fingerprint "$FINGERPRINT" \
+                --arg registeredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '{
+                    provider: $provider,
+                    apiUrl: $apiUrl,
+                    agentName: $agentName,
+                    tenant: $tenant,
+                    address: $address,
+                    apiKey: $apiKey,
+                    providerAgentId: $providerAgentId,
+                    fingerprint: $fingerprint,
+                    registeredAt: $registeredAt
+                }' > "$REG_FILE"
+
+            chmod 600 "$REG_FILE"
+            REGISTRATION_OK=true
+            echo "  ✅ AMP identity registered (cross-host routing enabled)"
+        else
+            echo "  ⚠️  AMP registration succeeded but no API key returned"
+        fi
+
+    elif [ "$REG_HTTP_CODE" = "409" ]; then
+        # Agent name already registered - this is fine (re-init scenario)
+        echo "  ℹ️  AMP identity already registered"
+        # Check if we already have a registration file
+        for reg_file in "${AMP_REGISTRATIONS_DIR}"/*.json; do
+            [ -f "$reg_file" ] || continue
+            provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
+            if [[ "$provider" == *"aimaestro"* ]] || [[ "$provider" == *".local"* ]]; then
+                REGISTRATION_OK=true
+                break
+            fi
+        done
+
+    elif [ "$REG_HTTP_CODE" = "000" ] || [ -z "$REG_HTTP_CODE" ]; then
+        echo "  ⚠️  AMP provider not reachable at ${AMP_MAESTRO_URL}"
+        echo "     Cross-host routing will not work until connected."
+        echo "     Start the server and run: amp-init --force"
+
+    else
+        REG_ERROR=$(echo "$REG_BODY" | jq -r '.message // .error // "Unknown error"' 2>/dev/null)
+        echo "  ⚠️  AMP registration failed (HTTP ${REG_HTTP_CODE}): ${REG_ERROR}"
+        echo "     Local messaging works, but cross-host routing requires registration."
+    fi
 fi
 
 # Update identity file with registration info

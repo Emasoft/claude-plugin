@@ -762,6 +762,31 @@ generate_keypair() {
     echo "SHA256:${fingerprint}"
 }
 
+# Generate Ed25519 keypair to a specified directory (for key rotation)
+generate_keypair_to() {
+    local target_dir="$1"
+    require_openssl
+    mkdir -p "$target_dir"
+
+    local private_key="${target_dir}/private.pem"
+    local public_key="${target_dir}/public.pem"
+
+    # Generate private key
+    $OPENSSL_BIN genpkey -algorithm Ed25519 -out "${private_key}" 2>/dev/null
+    chmod 600 "${private_key}"
+
+    # Extract public key
+    $OPENSSL_BIN pkey -in "${private_key}" -pubout -out "${public_key}" 2>/dev/null
+    chmod 644 "${public_key}"
+
+    # Calculate fingerprint
+    local fingerprint
+    fingerprint=$($OPENSSL_BIN pkey -in "${private_key}" -pubout -outform DER 2>/dev/null | \
+                  $OPENSSL_BIN dgst -sha256 -binary | base64)
+
+    echo "SHA256:${fingerprint}"
+}
+
 # Generate UUIDv4 — client-generated, globally unique, no coordination needed
 generate_uuid() {
     if command -v uuidgen &>/dev/null; then
