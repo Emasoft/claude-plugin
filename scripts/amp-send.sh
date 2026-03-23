@@ -17,6 +17,17 @@
 
 set -e
 
+# Pre-source: extract --id to set agent identity before helper resolves it
+_amp_prev=""
+for _amp_arg in "$@"; do
+    if [ "$_amp_prev" = "--id" ]; then
+        export CLAUDE_AGENT_ID="$_amp_arg"
+        break
+    fi
+    _amp_prev="$_amp_arg"
+done
+unset _amp_prev _amp_arg
+
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/amp-helper.sh"
@@ -50,6 +61,7 @@ show_help() {
     echo "  --attach, -a FILE         Attach a file (repeatable, max ${AMP_MAX_ATTACHMENTS} files,"
     echo "                              max $(format_file_size "$AMP_MAX_ATTACHMENT_SIZE")/file,"
     echo "                              max $(format_file_size "$AMP_MAX_TOTAL_ATTACHMENT_SIZE") total)"
+    echo "  --id UUID                 Operate as this agent (UUID from config.json)"
     echo "  --help, -h                Show this help"
     echo ""
     echo "Address formats:"
@@ -90,6 +102,9 @@ while [[ $# -gt 0 ]]; do
         --attach|-a)
             ATTACH_FILES+=("$2")
             shift 2
+            ;;
+        --id)
+            shift 2  # Already handled in pre-source parsing
             ;;
         --help|-h)
             show_help
@@ -453,11 +468,7 @@ if [ "$ROUTE" = "local" ]; then
 
         # Check if recipient exists on this filesystem first
         AGENTS_BASE_DIR="${HOME}/.agent-messaging/agents"
-        AMP_INDEX_FILE="${AGENTS_BASE_DIR}/.index.json"
-        RECIPIENT_UUID=""
-        if [ -f "$AMP_INDEX_FILE" ]; then
-            RECIPIENT_UUID=$(jq -r --arg name "$ADDR_NAME" '.[$name] // empty' "$AMP_INDEX_FILE" 2>/dev/null)
-        fi
+        RECIPIENT_UUID=$(_index_lookup "$ADDR_NAME" 2>/dev/null) || true
         if [ -n "$RECIPIENT_UUID" ]; then
             RECIPIENT_AMP_DIR="${AGENTS_BASE_DIR}/${RECIPIENT_UUID}"
         else
@@ -610,11 +621,7 @@ if [ "$ROUTE" = "local" ]; then
 
             AGENTS_BASE_DIR="${HOME}/.agent-messaging/agents"
             # Look up recipient UUID from .index.json
-            AMP_INDEX_FILE="${AGENTS_BASE_DIR}/.index.json"
-            RECIPIENT_UUID=""
-            if [ -f "$AMP_INDEX_FILE" ]; then
-                RECIPIENT_UUID=$(jq -r --arg name "$ADDR_NAME" '.[$name] // empty' "$AMP_INDEX_FILE" 2>/dev/null)
-            fi
+            RECIPIENT_UUID=$(_index_lookup "$ADDR_NAME" 2>/dev/null) || true
             if [ -n "$RECIPIENT_UUID" ]; then
                 RECIPIENT_AMP_DIR="${AGENTS_BASE_DIR}/${RECIPIENT_UUID}"
             else

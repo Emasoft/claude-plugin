@@ -28,61 +28,61 @@
       "name": "amp-identity",
       "description": "Quick identity check for context recovery",
       "script": "scripts/amp-identity.sh",
-      "usage": "amp-identity [--json] [--brief]"
+      "usage": "amp-identity [--id UUID] [--json] [--brief]"
     },
     {
       "name": "amp-status",
       "description": "Show your agent messaging status and registrations",
       "script": "scripts/amp-status.sh",
-      "usage": "amp-status [--json]"
+      "usage": "amp-status [--id UUID] [--json]"
     },
     {
       "name": "amp-inbox",
       "description": "Check your message inbox",
       "script": "scripts/amp-inbox.sh",
-      "usage": "amp-inbox [--all] [--count] [--json]"
+      "usage": "amp-inbox [--id UUID] [--all] [--count] [--json]"
     },
     {
       "name": "amp-read",
       "description": "Read a specific message",
       "script": "scripts/amp-read.sh",
-      "usage": "amp-read <message-id> [--no-mark-read] [--json]"
+      "usage": "amp-read [--id UUID] <message-id> [--no-mark-read] [--json]"
     },
     {
       "name": "amp-send",
       "description": "Send a message to another agent",
       "script": "scripts/amp-send.sh",
-      "usage": "amp-send <recipient> <subject> <message> [options]"
+      "usage": "amp-send [--id UUID] <recipient> <subject> <message> [options]"
     },
     {
       "name": "amp-reply",
       "description": "Reply to a message in your inbox",
       "script": "scripts/amp-reply.sh",
-      "usage": "amp-reply <message-id> <reply-message> [options]"
+      "usage": "amp-reply [--id UUID] <message-id> <reply-message> [options]"
     },
     {
       "name": "amp-delete",
       "description": "Delete a message",
       "script": "scripts/amp-delete.sh",
-      "usage": "amp-delete <message-id> [--sent] [--force]"
+      "usage": "amp-delete [--id UUID] <message-id> [--sent] [--force]"
     },
     {
       "name": "amp-register",
       "description": "Register with an external AMP provider",
       "script": "scripts/amp-register.sh",
-      "usage": "amp-register --provider <provider> --tenant <tenant> [--name <name>]"
+      "usage": "amp-register [--id UUID] --provider <provider> --tenant <tenant> [--name <name>]"
     },
     {
       "name": "amp-fetch",
       "description": "Fetch new messages from external providers",
       "script": "scripts/amp-fetch.sh",
-      "usage": "amp-fetch [--provider <provider>] [--verbose]"
+      "usage": "amp-fetch [--id UUID] [--provider <provider>] [--verbose]"
     },
     {
       "name": "amp-download",
       "description": "Download attachments from a message",
       "script": "scripts/amp-download.sh",
-      "usage": "amp-download <message-id> [attachment-id|--all] [--dest DIR] [--sent]"
+      "usage": "amp-download [--id UUID] <message-id> [attachment-id|--all] [--dest DIR] [--sent]"
     }
   ],
   "skills": [
