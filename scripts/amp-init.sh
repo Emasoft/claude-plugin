@@ -187,6 +187,39 @@ ensure_amp_dirs
 echo "  Generating Ed25519 keypair..."
 FINGERPRINT=$(generate_keypair)
 
+# =============================================================================
+# Verify fingerprint uniqueness across all local agents
+# =============================================================================
+# Two agents sharing a keypair is a security violation: either can forge
+# messages as the other, and revoking one key silently revokes both.
+INDEX_FILE="${AMP_AGENTS_BASE}/.index.json"
+if [ -f "$INDEX_FILE" ]; then
+    while IFS= read -r _entry; do
+        _existing_name=$(echo "$_entry" | jq -r '.key')
+        _existing_uuid=$(echo "$_entry" | jq -r '.value')
+        # Skip self (--force re-init)
+        [ "$_existing_uuid" = "$AGENT_UUID" ] && continue
+        _existing_cfg="${AMP_AGENTS_BASE}/${_existing_uuid}/config.json"
+        if [ -f "$_existing_cfg" ]; then
+            _existing_fp=$(jq -r '.agent.fingerprint // empty' "$_existing_cfg" 2>/dev/null)
+            if [ -n "$_existing_fp" ] && [ "$_existing_fp" = "$FINGERPRINT" ]; then
+                echo "" >&2
+                echo "Error: Generated keypair has the same fingerprint as existing agent '${_existing_name}'." >&2
+                echo "  Fingerprint: ${FINGERPRINT}" >&2
+                echo "  Existing UUID: ${_existing_uuid}" >&2
+                echo "" >&2
+                echo "This should never happen with proper key generation." >&2
+                echo "If you copied keys from another agent, generate fresh ones with: amp-init --force" >&2
+                # Clean up the directory we just created if it's new
+                if [ ! -f "${AMP_DIR}/config.json" ]; then
+                    rm -rf "$AMP_DIR"
+                fi
+                exit 1
+            fi
+        fi
+    done < <(jq -c 'to_entries[]' "$INDEX_FILE" 2>/dev/null)
+fi
+
 # Save configuration
 echo "  Saving configuration..."
 ADDRESS=$(save_config "$NAME" "$TENANT" "$FINGERPRINT" "$AGENT_UUID")
