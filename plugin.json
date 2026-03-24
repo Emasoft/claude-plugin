@@ -83,6 +83,12 @@
       "description": "Download attachments from a message",
       "script": "scripts/amp-download.sh",
       "usage": "amp-download [--id UUID] <message-id> [attachment-id|--all] [--dest DIR] [--sent]"
+    },
+    {
+      "name": "amp-statusline",
+      "description": "Install AMP status line for Claude Code (shows agent identity and unread count)",
+      "script": "scripts/amp-statusline.sh",
+      "usage": "amp-statusline.sh [--install | --uninstall | --test]"
     }
   ],
   "skills": [
