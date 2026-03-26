@@ -1,3 +1,8 @@
+---
+name: amp-delete
+description: Delete a message from your inbox or sent folder
+---
+
 # /amp-delete
 
 Delete a message from your inbox or sent folder.

@@ -18,6 +18,7 @@ set -e
 # Source security module
 SCRIPT_DIR_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR_HELPER}/amp-security.sh" ]; then
+    # shellcheck source=amp-security.sh
     source "${SCRIPT_DIR_HELPER}/amp-security.sh"
 fi
 
@@ -254,6 +255,7 @@ AMP_MAESTRO_URL="${AMP_MAESTRO_URL:-http://localhost:23000}"
 # Provider domain (AMP v1)
 AMP_PROVIDER_DOMAIN="${AMP_PROVIDER_DOMAIN:-aimaestro.local}"
 AMP_LOCAL_DOMAIN="${AMP_PROVIDER_DOMAIN}"
+export AMP_LOCAL_DOMAIN  # used by sourcing scripts
 
 # =============================================================================
 # Directory Setup
@@ -330,7 +332,8 @@ create_identity_file() {
     local fingerprint="$4"
 
     local identity_file="${AMP_DIR}/IDENTITY.md"
-    local updated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local updated_at
+    updated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
     # Build addresses section - collect all registered addresses
     local addresses_section=""
@@ -346,8 +349,10 @@ create_identity_file() {
         while IFS= read -r reg_file; do
             [ -z "$reg_file" ] && continue
             if [ -f "$reg_file" ]; then
-                local provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
-                local ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
+                local provider
+                provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
+                local ext_address
+                ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
 
                 if [ -n "$ext_address" ] && [ -n "$provider" ]; then
                     provider_count=$((provider_count + 1))
@@ -476,10 +481,14 @@ update_identity_file() {
 get_identity() {
     # First try config.json (authoritative)
     if [ -f "${AMP_CONFIG}" ]; then
-        local name=$(jq -r '.agent.name // empty' "${AMP_CONFIG}" 2>/dev/null)
-        local tenant=$(jq -r '.agent.tenant // empty' "${AMP_CONFIG}" 2>/dev/null)
-        local address=$(jq -r '.agent.address // empty' "${AMP_CONFIG}" 2>/dev/null)
-        local fingerprint=$(jq -r '.agent.fingerprint // empty' "${AMP_CONFIG}" 2>/dev/null)
+        local name
+        name=$(jq -r '.agent.name // empty' "${AMP_CONFIG}" 2>/dev/null)
+        local tenant
+        tenant=$(jq -r '.agent.tenant // empty' "${AMP_CONFIG}" 2>/dev/null)
+        local address
+        address=$(jq -r '.agent.address // empty' "${AMP_CONFIG}" 2>/dev/null)
+        local fingerprint
+        fingerprint=$(jq -r '.agent.fingerprint // empty' "${AMP_CONFIG}" 2>/dev/null)
 
         if [ -n "$name" ]; then
             # Build addresses array with primary
@@ -490,8 +499,10 @@ get_identity() {
                 while IFS= read -r reg_file; do
                     [ -z "$reg_file" ] && continue
                     if [ -f "$reg_file" ]; then
-                        local provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
-                        local ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
+                        local provider
+                        provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
+                        local ext_address
+                        ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
 
                         if [ -n "$ext_address" ] && [ -n "$provider" ]; then
                             addresses_json=$(echo "$addresses_json" | jq \
@@ -570,8 +581,10 @@ check_identity() {
             while IFS= read -r reg_file; do
                 [ -z "$reg_file" ] && continue
                 if [ -f "$reg_file" ]; then
-                    local provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
-                    local ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
+                    local provider
+                    provider=$(jq -r '.provider // empty' "$reg_file" 2>/dev/null)
+                    local ext_address
+                    ext_address=$(jq -r '.address // empty' "$reg_file" 2>/dev/null)
 
                     if [ -n "$ext_address" ] && [ -n "$provider" ]; then
                         printf "    %-10s %s\n" "${provider}:" "${ext_address}"

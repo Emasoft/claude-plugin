@@ -30,6 +30,7 @@ unset _amp_prev _amp_arg
 
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=amp-helper.sh
 source "${SCRIPT_DIR}/amp-helper.sh"
 
 # Parse arguments
@@ -246,8 +247,7 @@ if [ ${#ATTACH_FILES[@]} -gt 0 ]; then
     if [ -n "$UPLOAD_API_URL" ] && [ -n "$UPLOAD_API_KEY" ]; then
         for attach_file in "${ATTACH_FILES[@]}"; do
             echo "  Uploading: $(basename "$attach_file")..."
-            att_meta=$(upload_attachment "$attach_file" "$UPLOAD_API_URL" "$UPLOAD_API_KEY")
-            if [ $? -ne 0 ]; then
+            if ! att_meta=$(upload_attachment "$attach_file" "$UPLOAD_API_URL" "$UPLOAD_API_KEY"); then
                 echo "Error: Failed to upload attachment: $(basename "$attach_file")"
                 exit 1
             fi

@@ -1,6 +1,6 @@
 {
   "name": "agent-messaging",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Agent Messaging Protocol (AMP) - Secure, cryptographically signed messaging between AI agents across different providers.",
   "homepage": "https://agentmessaging.org",
   "repository": "https://github.com/agentmessaging/claude-plugin",
@@ -15,22 +15,5 @@
     "federation",
     "protocol",
     "inter-agent-communication"
-  ],
-  "skills": [
-    "skills/agent-messaging"
-  ],
-  "commands": [
-    "commands/amp-init.md",
-    "commands/amp-identity.md",
-    "commands/amp-status.md",
-    "commands/amp-send.md",
-    "commands/amp-inbox.md",
-    "commands/amp-read.md",
-    "commands/amp-reply.md",
-    "commands/amp-delete.md",
-    "commands/amp-register.md",
-    "commands/amp-fetch.md",
-    "commands/amp-download.md"
-  ],
-  "claude_code_version": ">=1.0.0"
+  ]
 }

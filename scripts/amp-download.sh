@@ -31,6 +31,7 @@ unset _amp_prev _amp_arg
 
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=amp-helper.sh
 source "${SCRIPT_DIR}/amp-helper.sh"
 
 # Parse arguments
@@ -160,8 +161,8 @@ FAILED=0
 download_single_attachment() {
     local att_json="$1"
 
-    local att_id
-    att_id=$(echo "$att_json" | jq -r '.id')
+    local _att_id  # extracted for potential future use in error messages
+    _att_id=$(echo "$att_json" | jq -r '.id')
     local att_filename
     att_filename=$(echo "$att_json" | jq -r '.filename')
     local att_size
@@ -194,9 +195,7 @@ download_single_attachment() {
     echo "  Downloading: ${att_filename} ($(format_file_size "$att_size"))..."
 
     local result
-    result=$(download_attachment "$att_json" "$DEST_DIR" "$DL_API_URL" "$DL_API_KEY")
-
-    if [ $? -eq 0 ]; then
+    if result=$(download_attachment "$att_json" "$DEST_DIR" "$DL_API_URL" "$DL_API_KEY"); then
         echo "  ✅ Saved: ${result}"
         DOWNLOADED=$((DOWNLOADED + 1))
     else

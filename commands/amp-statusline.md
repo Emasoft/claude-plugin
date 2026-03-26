@@ -1,3 +1,8 @@
+---
+name: amp-statusline
+description: Install or manage the AMP status line for Claude Code
+---
+
 # amp-statusline
 
 Install or manage the AMP status line for Claude Code.

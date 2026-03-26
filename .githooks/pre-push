@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-push hook: validate plugin structure before pushing
+set -euo pipefail
+
+echo "Running plugin validation..."
+
+if command -v uvx &>/dev/null; then
+  uvx --from git+https://github.com/Emasoft/claude-plugins-validation --with pyyaml cpv-validate . --verbose
+  exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then
+    echo "Plugin validation failed (exit $exit_code). Push blocked."
+    exit 1
+  fi
+  echo "Plugin validation passed."
+else
+  echo "Warning: uvx not found, skipping plugin validation."
+fi

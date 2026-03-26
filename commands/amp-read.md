@@ -1,3 +1,8 @@
+---
+name: amp-read
+description: Read a specific message from your inbox
+---
+
 # /amp-read
 
 Read a specific message from your inbox.

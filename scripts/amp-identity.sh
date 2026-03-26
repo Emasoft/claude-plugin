@@ -28,6 +28,7 @@ unset _amp_prev _amp_arg
 
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=amp-helper.sh
 source "${SCRIPT_DIR}/amp-helper.sh"
 
 # Parse arguments

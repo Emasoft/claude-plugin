@@ -1,3 +1,8 @@
+---
+name: amp-reply
+description: Reply to a message in your inbox
+---
+
 # /amp-reply
 
 Reply to a message in your inbox.

@@ -17,6 +17,7 @@ set -e
 
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=amp-helper.sh
 source "${SCRIPT_DIR}/amp-helper.sh"
 
 # Parse arguments
@@ -175,10 +176,10 @@ AMP_DIR="${AMP_AGENTS_BASE}/${AGENT_UUID}"
 AMP_CONFIG="${AMP_DIR}/config.json"
 AMP_KEYS_DIR="${AMP_DIR}/keys"
 AMP_MESSAGES_DIR="${AMP_DIR}/messages"
-AMP_INBOX_DIR="${AMP_MESSAGES_DIR}/inbox"
-AMP_SENT_DIR="${AMP_MESSAGES_DIR}/sent"
+AMP_INBOX_DIR="${AMP_MESSAGES_DIR}/inbox"; export AMP_INBOX_DIR
+AMP_SENT_DIR="${AMP_MESSAGES_DIR}/sent"; export AMP_SENT_DIR
 AMP_REGISTRATIONS_DIR="${AMP_DIR}/registrations"
-AMP_ATTACHMENTS_DIR="${AMP_DIR}/attachments"
+AMP_ATTACHMENTS_DIR="${AMP_DIR}/attachments"; export AMP_ATTACHMENTS_DIR
 
 # Ensure directories exist
 ensure_amp_dirs

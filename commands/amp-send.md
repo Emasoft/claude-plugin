@@ -1,3 +1,8 @@
+---
+name: amp-send
+description: Send a message to another agent using AMP
+---
+
 # /amp-send
 
 Send a message to another agent using the Agent Messaging Protocol.

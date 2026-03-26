@@ -26,6 +26,7 @@ unset _amp_prev _amp_arg
 
 # Source helper functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=amp-helper.sh
 source "${SCRIPT_DIR}/amp-helper.sh"
 
 # Parse arguments
@@ -152,8 +153,8 @@ fi
 rm "$MSG_FILE"
 
 # Clean up downloaded attachments for this message
-if [ -d "${AMP_ATTACHMENTS_DIR}/${MESSAGE_ID}" ]; then
-    rm -rf "${AMP_ATTACHMENTS_DIR}/${MESSAGE_ID}"
+if [ -d "${AMP_ATTACHMENTS_DIR:?}/${MESSAGE_ID:?}" ]; then
+    rm -rf "${AMP_ATTACHMENTS_DIR:?}/${MESSAGE_ID:?}"
 fi
 
 # Clean up empty sender/recipient directory

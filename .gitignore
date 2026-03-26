@@ -1,0 +1,50 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Build artifacts
+dist/
+build/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Validation reports
+validation-report.md
+
+# Claude Code
+.claude/
+
+# LLM Externalizer
+llm_externalizer_output/
+
+# TLDR
+.tldr/

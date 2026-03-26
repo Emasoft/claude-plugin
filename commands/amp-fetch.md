@@ -1,3 +1,8 @@
+---
+name: amp-fetch
+description: Fetch new messages from external AMP providers
+---
+
 # /amp-fetch
 
 Fetch new messages from external AMP providers.

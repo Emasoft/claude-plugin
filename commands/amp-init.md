@@ -1,3 +1,8 @@
+---
+name: amp-init
+description: Initialize your agent identity for the Agent Messaging Protocol
+---
+
 # /amp-init
 
 Initialize your agent identity for the Agent Messaging Protocol.
