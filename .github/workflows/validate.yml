@@ -10,8 +10,12 @@ on:
       - 'skills/**'
       - 'hooks/**'
       - 'scripts/**'
+      - 'rules/**'
+      - '*.mcp.json'
+      - '.lsp.json'
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -19,44 +23,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate plugin.json
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run CPV validation (full suite)
         run: |
-          if [ ! -f .claude-plugin/plugin.json ]; then
-            # Try alternative location
-            if [ -f plugin.json ]; then
-              echo "OK: plugin.json at root"
-              jq empty plugin.json || { echo "FAIL: Invalid JSON"; exit 1; }
-              jq '{name, version}' plugin.json
-            else
-              echo "FAIL: No plugin.json found"
-              exit 1
-            fi
+          echo "=== CPV Plugin Validation (remote via uvx) ==="
+          uvx --from git+https://github.com/Emasoft/claude-plugins-validation --with pyyaml cpv-validate . --verbose --report validation-report.md
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "=== Validation PASSED ==="
           else
-            echo "OK: .claude-plugin/plugin.json"
-            jq empty .claude-plugin/plugin.json || { echo "FAIL: Invalid JSON"; exit 1; }
-            jq '{name, version}' .claude-plugin/plugin.json
+            echo "=== Validation FAILED (exit code: $EXIT_CODE) ==="
+            cat validation-report.md 2>/dev/null || true
+            exit $EXIT_CODE
           fi
 
-      - name: Validate skills
-        run: |
-          if [ -d skills ]; then
-            for d in skills/*/; do
-              [ -f "$d/SKILL.md" ] && echo "OK: $(basename $d)" || echo "WARN: $(basename $d) missing SKILL.md"
-            done
-          fi
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: validation-report.md
+          if-no-files-found: ignore
 
-      - name: Validate commands
+      - name: Summary
+        if: always()
         run: |
-          if [ -d commands ]; then
-            for f in commands/*.md; do
-              [ -f "$f" ] && echo "OK: $(basename $f)"
-            done
-          fi
-
-      - name: Check scripts executable
-        run: |
-          if [ -d scripts ]; then
-            for f in scripts/*.sh; do
-              [ -f "$f" ] && [ ! -x "$f" ] && echo "WARN: $f not executable"
-            done
+          echo "## Plugin Validation" >> $GITHUB_STEP_SUMMARY
+          if [ -f validation-report.md ]; then
+            cat validation-report.md >> $GITHUB_STEP_SUMMARY
           fi
